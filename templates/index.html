@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Manager</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/particlesjs/2.2.3/particles.min.js" integrity="sha512-jq8sZI0I9Og0nnZ+CfJRnUzNSDKxr/5Bvha5bn7AHzTnRyxUfpUArMzfH++mwE/hb2efOo1gCAgI+1RMzf8F7g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script></head>
+    <!-- Load Particles.js First -->
+    <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
+
+<!-- Then load your script.js -->
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+
+    <body>
+    <h1 style="color: white;">Stock Manager Dashboard</h1>
+    <div id="particles-js"></div>
+
+
+<!-- Move Search Box Below Title -->
+<div class="search-container">
+    <input type="text" name="search" id="searchBox" placeholder="Search product..." value="{{ search_query }}">
+    <button onclick="searchProduct()">Search</button>
+</div>
+
+
+    {% if searched_product %}
+        <!-- Show only search results if a search is performed -->
+        <h3>Search Results:</h3>
+        <table border="1">
+            <tr>
+                <th>Product Name</th>
+                <th>Stock Level</th>
+                <th>Threshold</th>
+            </tr>
+            {% for product in searched_product %}
+            <tr>
+                <td>{{ product.name }}</td>
+                <td>{{ product.stock_level }}</td>
+                <td>{{ product.threshold }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    {% else %}
+        <!-- Show all products & low stock warnings when no search is performed -->
+
+        <!-- Product Form -->
+        <form action="/add_product" method="post">
+            <input type="text" name="name" placeholder="Product Name" required>
+            <input type="number" name="stock_level" placeholder="Stock Level" required>
+            <input type="number" name="threshold" placeholder="Threshold" required>
+            <button type="submit">Add Product</button>
+        </form>
+
+        <!-- Product Table -->
+        <div class="product-grid">
+            {% for product in products %}
+            <div class="product-card">
+                <h3>{{ product.name }}</h3>
+                <p><strong>Stock Level:</strong> {{ product.stock_level }}</p>
+                <p><strong>Threshold:</strong> {{ product.threshold }}</p>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <br/>
+        <br/>
+        <!-- Upload Excel File Form -->
+        <form action="/upload_excel" method="post" enctype="multipart/form-data">
+            <input type="file" name="file" accept=".xlsx" required>
+            <button type="submit">Upload & Update Stock</button>
+        </form>
+
+        <br/>
+
+        <form action="/upload_sales" method="post" enctype="multipart/form-data">
+            <label for="sales_file">Upload Sales Report:</label>
+            <input type="file" name="file" id="sales_file" required>
+            <button type="submit">Upload</button>
+        </form>
+
+        <br/><br/>
+
+        {% if low_stock %}
+        <div class="alert alert-danger">
+            <strong>⚠️ Low Stock Alert!</strong>
+            <ul>
+                {% for product in low_stock %}
+                    <li>{{ product.name }}: {{ product.stock_level }} left</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    {% endif %}
+
+</body>
+</html>

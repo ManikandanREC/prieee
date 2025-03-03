@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <h2>📊 Stock Report</h2>
+
+<table border="1">
+    <tr>
+        <th>Product Name</th>
+        <th>Initial Stock</th>
+        <th>Sold</th>
+        <th>Remaining Stock</th>
+    </tr>
+    {% for product in products %}
+    <tr>
+        <td>{{ product.name }}</td>
+        <td>{{ product.initial_stock }}</td>
+        <td>{{ product.sold }}</td>
+        <td>{{ product.stock_level }}</td>
+    </tr>
+    {% endfor %}
+</table>
+
+<a href="{{ url_for('dashboard') }}">🔙 Back to Dashboard</a>
+
+</body>
+</html>
