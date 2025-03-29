@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Stock & Sales</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles_u.css') }}">
+</head>
+<body>
+    <h1>Upload Stock & Sales Reports</h1>
+
+    <!-- Upload Stock (Excel) Form (Now handles both stock updates & new products) -->
+    <form action="/upload_excel" method="post" enctype="multipart/form-data">
+        <label for="excel_file">Upload Stock & New Products (Excel):</label>
+        <input type="file" name="file" id="excel_file" accept=".xlsx" required>
+        <button type="submit">Upload & Update Stock</button>
+    </form>
+
+    <br/>
+
+    <!-- Upload Sales Report Form -->
+    <form action="/upload_sales" method="post" enctype="multipart/form-data">
+        <label for="sales_file">Upload Sales Report:</label>
+        <input type="file" name="file" id="sales_file" required>
+        <button type="submit">Upload Sales Data</button>
+    </form>
+
+    <br/>
+    <a href="{{ url_for('dashboard') }}"><button>Back to Dashboard</button></a>
+</body>
+</html>

@@ -2,11 +2,26 @@ import os
 import pandas as pd
 from flask import Flask, render_template, request, redirect,url_for
 import mysql.connector
+from flask_mail import Mail, Message
+
+
+
+
 
 app = Flask(__name__)
 
+
+mail = Mail(app)
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'  # Use your email provider's SMTP server
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = '220701159@rajalakshmi.edu.in'
+app.config['MAIL_PASSWORD'] = ''  # Use app password if using Gmail
+app.config['MAIL_DEFAULT_SENDER'] = ''
 
 # Database connection
 def get_db_connection():
@@ -81,20 +96,30 @@ def upload_excel():
     for _, row in df.iterrows():
         name = row["Product Name"].strip()
         stock_level = int(row["Stock Level"])
+        threshold = int(row["Threshold"]) if "Threshold" in row else 10  # Default threshold
 
-        print(f"Updating: {name} -> {stock_level}")  # Debugging
-
+        # Try updating existing stock
         cursor.execute(
-    "UPDATE products SET stock_level = stock_level + %s WHERE TRIM(name) = TRIM(%s)",
-    (stock_level, name)
-)
+            "UPDATE products SET stock_level = stock_level + %s WHERE TRIM(name) = TRIM(%s)",
+            (stock_level, name)
+        )
 
-        print(f"Rows affected: {cursor.rowcount}")  # Debugging
-        conn.commit()  # Save all updates
-        
+        # If no row was updated, insert as a new product
+        if cursor.rowcount == 0:
+            cursor.execute(
+                "INSERT INTO products (name, stock_level, threshold) VALUES (%s, %s, %s)",
+                (name, stock_level, threshold)
+            )
+            print(f"Inserted new product: {name} -> {stock_level}")
+
+    conn.commit()
     conn.close()
 
     return redirect("/")
+
+def send_email(subject, recipient, body):
+    msg = Message(subject, recipients=[recipient], body=body)
+    mail.send(msg)
 
 @app.route("/upload_sales", methods=["POST"])
 def upload_sales():
@@ -124,8 +149,11 @@ def upload_sales():
         result = cursor.fetchone()
 
         if result and result[0] < result[1]:  # stock_level < threshold
-            print(f"⚠️ Low stock alert for {name}: {result[0]} left!")
+            subject = f"⚠️ Low Stock Alert: {name}"
+            body = f"Stock for {name} is low! Only {result[0]} left."
 
+            msg = Message(subject, recipients=["manikandan101004@gmail.com"], body=body)
+            mail.send(msg)
 
     conn.commit()
     conn.close()
@@ -140,6 +168,38 @@ def delete_product(product_id):
     conn.commit()
     conn.close()
     return redirect("/")
+@app.route("/upload_page")
+def upload_page():
+    return render_template("upload.html")
+
+@app.route("/upload_new_products", methods=["POST"])
+def upload_new_products():
+    file = request.files["file"]
+    file_path = os.path.join(UPLOAD_FOLDER, file.filename)
+    file.save(file_path)
+
+    df = pd.read_excel(file_path)
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    for _, row in df.iterrows():
+        name = row["Product Name"].strip()
+        stock_level = int(row["Stock Level"])
+        threshold = int(row["Threshold"]) if "Threshold" in row else 10  # Default threshold
+
+        # Insert new product (ignores duplicates)
+        cursor.execute(
+            "INSERT IGNORE INTO products (name, stock_level, threshold) VALUES (%s, %s, %s)",
+            (name, stock_level, threshold)
+        )
+        print(f"Inserted: {name} -> {stock_level}")
+
+    conn.commit()
+    conn.close()
+
+    return redirect("/")
+
 
 
 
