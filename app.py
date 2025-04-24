@@ -11,7 +11,7 @@ from flask_mail import Mail, Message
 app = Flask(__name__)
 
 
-mail = Mail(app)
+
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
@@ -19,10 +19,10 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'  # Use your email provider's SMTP server
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = '220701159@rajalakshmi.edu.in'
-app.config['MAIL_PASSWORD'] = ''  # Use app password if using Gmail
-app.config['MAIL_DEFAULT_SENDER'] = ''
-
+app.config['MAIL_USERNAME'] = 'manikandan101004@gmail.com'
+app.config['MAIL_PASSWORD'] = 'skry ugup ouaz cgzu'  # Use app password if using Gmail
+app.config['MAIL_DEFAULT_SENDER'] = 'manikandan101004@gmail.com'
+mail = Mail(app)
 # Database connection
 def get_db_connection():
     return mysql.connector.connect(
@@ -138,6 +138,8 @@ def upload_sales():
     cursor = conn.cursor()
 
     for _, row in df.iterrows():
+        print("Processing row:", row.to_dict())
+
         name = row["Product Name"].strip()
         sold_quantity = int(row["Sold Quantity"])
 
@@ -147,12 +149,16 @@ def upload_sales():
         )
         cursor.execute("SELECT stock_level, threshold FROM products WHERE LOWER(TRIM(name)) = LOWER(TRIM(%s))", (name,))
         result = cursor.fetchone()
+        if result:
+            print(f"{name}: Stock={result[0]}, Threshold={result[1]}")
+        else:
+            print(f"{name} not found!")
 
         if result and result[0] < result[1]:  # stock_level < threshold
             subject = f"⚠️ Low Stock Alert: {name}"
             body = f"Stock for {name} is low! Only {result[0]} left."
 
-            msg = Message(subject, recipients=["manikandan101004@gmail.com"], body=body)
+            msg = Message(subject, recipients=["220701159@rajalakshmi.edu.in"], body=body)
             mail.send(msg)
 
     conn.commit()
@@ -200,8 +206,22 @@ def upload_new_products():
 
     return redirect("/")
 
+def send_initial_low_stock_alerts():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT name, stock_level, threshold FROM products WHERE stock_level < threshold")
+    low_stock_products = cursor.fetchall()
+    conn.close()
 
+    for product in low_stock_products:
+        subject = f"⚠️ Low Stock Alert: {product['name']}"
+        body = f"Stock for {product['name']} is low! Only {product['stock_level']} left."
+        print(f"Sending alert: {body}")
+        send_email(subject, "220701159@rajalakshmi.edu.in", body)
 
+# Wrap the email sending in the app context
+with app.app_context():
+    send_initial_low_stock_alerts()
 
 if __name__ == "__main__":
     app.run(debug=True)
