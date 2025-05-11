@@ -54,6 +54,9 @@
             <input type="text" name="name" placeholder="Product Name" required>
             <input type="number" name="stock_level" placeholder="Stock Level" required>
             <input type="number" name="threshold" placeholder="Threshold" required>
+            <input type="number" name="price" placeholder="Price" step="0.01" required>
+            <input type="date" name="expiry_date" required>
+
             <button type="submit">Add Product</button>
         </form>
 
@@ -63,9 +66,21 @@
                 <h3>{{ product.name }}</h3>
                 <p><strong>Stock Level:</strong> {{ product.stock_level }}</p>
                 <p><strong>Threshold:</strong> {{ product.threshold }}</p>
+                <p><strong>Price:</strong> 
+                    <span class="{% if product.discounted %}discounted{% else %}normal{% endif %}">
+                        ₹{{ product.price }}
+                    </span>
+                </p>
+                
+                <p><strong>Expiry:</strong> {{ product.expiry_date }}</p>
+
                 <form action="{{ url_for('delete_product', product_id=product.id) }}" method="POST">
                     <button type="submit" onclick="return confirm('Are you sure?')">Delete</button>
                 </form>
+                <form action="{{ url_for('purchase_page', product_id=product.id) }}" method="GET">
+                    <button type="submit">Purchase</button>
+                </form>
+                
             </div>
             {% endfor %}
         </div>

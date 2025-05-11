@@ -1,0 +1,112 @@
+<!-- templates/purchase.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Purchase Product</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6f8;
+            padding: 40px;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            max-width: 500px;
+            margin: auto;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h2 {
+            text-align: center;
+        }
+        .details {
+            margin-bottom: 20px;
+        }
+        label, input {
+            display: block;
+            width: 100%;
+        }
+        input[type="number"] {
+            padding: 8px;
+            margin: 10px 0;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            background: #28a745;
+            border: none;
+            color: white;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #218838;
+        }
+
+        .product-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .product-card {
+            border: 1px solid #ddd;
+            padding: 1rem;
+            border-radius: 10px;
+            width: 200px;
+            box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Purchase {{ product.name }}</h2>
+        <div class="details">
+            <p><strong>Stock:</strong> {{ product.stock_level }}</p>
+            <p><strong>Price:</strong> ₹{{ product.price }}</p>
+            <p><strong>Expiry:</strong> {{ product.expiry_date }}</p>
+        </div>
+        <form action="{{ url_for('process_purchase', product_id=product.id) }}" method="POST">
+            <label for="quantity">Quantity:</label>
+            <input type="number" name="quantity" min="1" max="{{ product.stock_level }}" required>
+            <button type="submit">Confirm Purchase</button>
+        </form>
+        <hr>
+        <div class="product-grid">
+            {% for item in expiring_soon %}
+            <div class="product-card">
+                <h3>{{ item.name }}</h3>
+                <p><strong>Stock Level:</strong> {{ item.stock_level }}</p>
+                <p><strong>Price:</strong> ₹{{ item.price }}</p>
+                <p><strong>Expiry:</strong> {{ item.expiry_date }}</p>
+                <form action="{{ url_for('purchase_page', product_id=item.id) }}" method="GET">
+                    <button type="submit">Purchase</button>
+                </form>
+            </div>
+            {% else %}
+            <p>No products close to expiry.</p>
+            {% endfor %}
+        </div>
+        <div class="product-grid">
+            {% for item in suggestions %}
+            <div class="product-card">
+                <h3>{{ item.name }}</h3>
+                <p><strong>Stock Level:</strong> {{ item.stock_level }}</p>
+                <p><strong>Price:</strong> ₹{{ item.price }}</p>
+                <p><strong>Expiry:</strong> {{ item.expiry_date }}</p>
+                <form action="{{ url_for('purchase_page', product_id=item.id) }}" method="GET">
+                    <button type="submit">Purchase</button>
+                </form>
+            </div>
+            {% else %}
+            <!--p>No similar products found.</p-->
+            {% endfor %}
+        </div>
+        
+
+    </div>
+</body>
+</html>

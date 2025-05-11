@@ -18,12 +18,21 @@ form {
     margin-bottom: 20px;
 }
 
-input[type="text"], input[type="number"], input[type="file"] {
+input[type="text"], input[type="number"], input[type="file"],input[type='date'] {
     padding: 10px;
     width: 250px;
     border: 1px solid #ccc;
     border-radius: 5px;
 }
+
+.discounted {
+    color: red;
+}
+
+.normal {
+    color: black;
+}
+
 
 button {
     padding: 10px 15px;

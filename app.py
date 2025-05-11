@@ -1,9 +1,10 @@
 import os
 import pandas as pd
-from flask import Flask, render_template, request, redirect,url_for
+from flask import Flask, render_template, request, redirect,url_for,flash
 import mysql.connector
 from flask_mail import Mail, Message
-
+from datetime import datetime, timedelta,date
+from openpyxl import load_workbook
 
 
 
@@ -38,31 +39,34 @@ def dashboard():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
-    searched_product = []
-    if search_query:
-        cursor.execute("SELECT * FROM products WHERE LOWER(name) LIKE LOWER(%s)", (f"%{search_query}%",))
-        searched_product = cursor.fetchall()
+    # Always fetch products with days_left
+    cursor.execute("SELECT *, DATEDIFF(expiry_date, CURDATE()) AS days_left FROM products")
+    all_products = cursor.fetchall()
 
-    # Fetch all products only if no search is performed
     products = []
     low_stock = []
-    if not searched_product:
-        cursor.execute("SELECT * FROM products")
-        products = cursor.fetchall()
+    searched_product = []
 
+    for p in all_products:
+        p["discounted"] = p["days_left"] is not None and p["days_left"] <= 7
+        products.append(p)
+
+    if search_query:
+        searched_product = [p for p in products if search_query.lower() in p["name"].lower()]
+    else:
         cursor.execute("SELECT name, stock_level FROM products WHERE stock_level < threshold")
         low_stock = cursor.fetchall()
 
     conn.close()
-    
+
     return render_template(
         "index.html",
         products=products,
         low_stock=low_stock,
         searched_product=searched_product,
-        search_query=search_query
+        search_query=search_query,
+        current_date=date.today()
     )
-
 
 
 
@@ -71,12 +75,20 @@ def add_product():
     name = request.form["name"]
     stock_level = request.form["stock_level"]
     threshold = request.form["threshold"]
+    price = request.form["price"]
+    expiry_date = request.form["expiry_date"]  # format: yyyy-mm-dd
+
+    # Apply discount if expiry is within 7 days
+    expiry_obj = datetime.strptime(expiry_date, "%Y-%m-%d")
+    today = datetime.now()
+    if expiry_obj <= today + timedelta(days=7):
+        price = round(float(price) * 0.7, 2)  # 30% discount
 
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
-        "INSERT INTO products (name, stock_level, threshold) VALUES (%s, %s, %s)",
-        (name, stock_level, threshold)
+        "INSERT INTO products (name, stock_level, threshold, price, expiry_date) VALUES (%s, %s, %s, %s, %s)",
+        (name, stock_level, threshold, price, expiry_date)
     )
     conn.commit()
     conn.close()
@@ -97,20 +109,29 @@ def upload_excel():
         name = row["Product Name"].strip()
         stock_level = int(row["Stock Level"])
         threshold = int(row["Threshold"]) if "Threshold" in row else 10  # Default threshold
+        price = float(row["Price"]) if "Price" in row else 0.0  # Default to 0.0 if not provided
+        expiry_date = row["Expiry Date"].strftime('%Y-%m-%d') if "Expiry Date" in row else None
 
-        # Try updating existing stock
+        # Try updating existing stock along with price and expiry date
         cursor.execute(
-            "UPDATE products SET stock_level = stock_level + %s WHERE TRIM(name) = TRIM(%s)",
-            (stock_level, name)
+            """
+            UPDATE products 
+            SET stock_level = stock_level + %s, price = %s, expiry_date = %s 
+            WHERE TRIM(name) = TRIM(%s)
+            """,
+            (stock_level, price, expiry_date, name)
         )
 
         # If no row was updated, insert as a new product
         if cursor.rowcount == 0:
             cursor.execute(
-                "INSERT INTO products (name, stock_level, threshold) VALUES (%s, %s, %s)",
-                (name, stock_level, threshold)
+                """
+                INSERT INTO products (name, stock_level, threshold, price, expiry_date) 
+                VALUES (%s, %s, %s, %s, %s)
+                """,
+                (name, stock_level, threshold, price, expiry_date)
             )
-            print(f"Inserted new product: {name} -> {stock_level}")
+            print(f"Inserted new product: {name} -> {stock_level}, {price}, {expiry_date}")
 
     conn.commit()
     conn.close()
@@ -192,14 +213,24 @@ def upload_new_products():
     for _, row in df.iterrows():
         name = row["Product Name"].strip()
         stock_level = int(row["Stock Level"])
-        threshold = int(row["Threshold"]) if "Threshold" in row else 10  # Default threshold
+        threshold = int(row["Threshold"]) if "Threshold" in row else 10
+        price = float(row["Price"]) if "Price" in row else 0.0
+        expiry_date = row["Expiry Date"] if "Expiry Date" in row else None
 
-        # Insert new product (ignores duplicates)
+        # Apply 30% discount if expiry within 7 days
+        if expiry_date:
+            try:
+                expiry_obj = pd.to_datetime(expiry_date)
+                if expiry_obj <= datetime.now() + timedelta(days=7):
+                    price = round(price * 0.7, 2)
+            except:
+                expiry_date = None  # fallback if invalid
+
         cursor.execute(
-            "INSERT IGNORE INTO products (name, stock_level, threshold) VALUES (%s, %s, %s)",
-            (name, stock_level, threshold)
+            "INSERT IGNORE INTO products (name, stock_level, threshold, price, expiry_date) VALUES (%s, %s, %s, %s, %s)",
+            (name, stock_level, threshold, price, expiry_date)
         )
-        print(f"Inserted: {name} -> {stock_level}")
+        print(f"Inserted: {name} -> {stock_level}, Price: {price}, Expiry: {expiry_date}")
 
     conn.commit()
     conn.close()
@@ -222,6 +253,64 @@ def send_initial_low_stock_alerts():
 # Wrap the email sending in the app context
 with app.app_context():
     send_initial_low_stock_alerts()
+
+
+
+@app.route("/purchase/<int:product_id>", methods=["GET"])
+def purchase_page(product_id):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    # Get the selected product
+    cursor.execute("SELECT * FROM products WHERE id = %s", (product_id,))
+    product = cursor.fetchone()
+    if not product:
+        conn.close()
+        return "Product not found", 404
+
+    # Products close to expiry (<= 7 days)
+    cursor.execute("""
+        SELECT * FROM products 
+        WHERE DATEDIFF(expiry_date, CURDATE()) <= 7 AND id != %s
+    """, (product_id,))
+    expiring_soon = cursor.fetchall()
+
+    # Suggestions based on starting letter (excluding the current product)
+    start_letter = product["name"][0]
+    cursor.execute("""
+        SELECT * FROM products 
+        WHERE name LIKE %s AND id != %s
+    """, (f"{start_letter}%", product_id))
+    suggestions = cursor.fetchall()
+
+    conn.close()
+
+    return render_template(
+        "purchase.html",
+        product=product,
+        expiring_soon=expiring_soon,
+        suggestions=suggestions
+    )
+
+
+# Handle the actual purchase
+@app.route("/process_purchase/<int:product_id>", methods=["POST"])
+def process_purchase(product_id):
+    quantity = int(request.form["quantity"])
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE products SET stock_level = stock_level - %s WHERE id = %s AND stock_level >= %s",
+                   (quantity, product_id, quantity))
+    conn.commit()
+    conn.close()
+
+    return redirect("/")
+
+
+
+
+
 
 if __name__ == "__main__":
     app.run(debug=True)
